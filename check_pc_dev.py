@@ -6,6 +6,15 @@ import time
 import threading
 
 
+COLOR_LIGHT = ["#AFAFAF","#B7B7B7","#BFBFBF","#C7C7C7","#CFCFCF","#D7D7D7","#DFDFDF","#E7E7E7","#EFEFEF","#F7F7F7",
+               "#D7D7D7","#DBDBDB","#DFDFDF","#E3E3E3","#E7E7E7","#EBEBEB","#EFEFEF","#F3F3F3","#F7F7F7","#FBFBFB",
+               "#EBEBEB","#EDEDED","#EFEFEF","#F1F1F1","#F3F3F3","#F5F5F5","#F7F7F7","#F9F9F9","#FBFBFB","#FDFDFD",
+               "#F5F5F5","#F6F6F6","#F7F7F7","#F8F8F8","#F9F9F9","#FAFAFA","#FBFBFB","#FCFCFC","#FDFDFD","#FEFEFE"]
+COLOR_DARK = ["#010101","#020202","#030303","#040404","#050505","#060606","#070707","#080808","#090909","#0A0A0A",
+               "#020202","#040404","#060606","#080808","#0A0A0A","#0C0C0C","#0E0E0E","#101010","#121212","#141414",
+               "#040404","#080808","#0C0C0C","#101010","#141414","#181818","#1C1C1C","#202020","#242424","#282828",
+               "#080808","#101010","#181818","#202020","#282828","#303030","#383838","#404040","#484848","#505050"]
+
 def check_dev(cmd, key_word):
     rst = os.popen(cmd)
     for line in rst.readlines():
@@ -93,7 +102,7 @@ class ReadDev:
         part_name = []
         for line in rst:
             line = line.strip('\n')
-            if 'part' not in line and 'ata' in line or 'nv' in line:
+            if ('part' not in line and '.' not in line)and ('ata' in line or 'nvme' in line):
                 part_name.append(line)
         self.dct_dev.update({'硬盘': part_name})
 
@@ -122,6 +131,21 @@ class ReadDev:
         self.get_base_board()
         self.get_disk()
         return self.dct_dev
+
+    def get_temp(self):
+        cmd = 'sensors'
+        rst = os.popen(cmd)
+        temp = []
+        for line in rst:
+            if 'pch_' in line:
+                temp.append('南桥芯片温度：')
+            elif 'acpitz' in line:
+                temp.append('ｃｐｕ接口温度')
+            elif 'coretemp' in line:
+                temp.append('cpu核心温度')
+            else:
+                temp.append(line.strip('\n'))
+        return '\n'.join(temp)
 
 
 def cpu_stress():
@@ -159,7 +183,7 @@ class MainGui:
         if self.fm2_part is not None:
             self.fm2_part.destroy()
         self.fm2_part = Frame(master)
-        sort_key = ("CPU",'主板','内存','硬盘')
+        sort_key = ("CPU",'主板','内存','硬盘','显卡')
         for key in sort_key:
             self.create_label(self.fm2_part, text=key, font=12)
             for dev_produce in self.dct_dev[key]:
@@ -170,13 +194,15 @@ class MainGui:
     def cpu_stress(self):
         new_dia = Toplevel()
         x_pos, y_pos = self.new_win_get_master_place(150, 150)
-        new_dia.geometry('500x70+%s+%s' % (x_pos, y_pos))
+        new_dia.geometry('500x400+%s+%s' % (x_pos, y_pos))
         new_dia.title('save check')
-        CpuStress(new_dia)
+        CpuStress(new_dia, self.dev)
         self.master.wait_window(new_dia)
 
     def display_test(self):
-        pass
+        new_dia = Toplevel()
+        DisplayTest(new_dia)
+        self.master.wait_window(new_dia)
 
     def new_win_get_master_place(self, x_offset, y_offset):
         place = self.master.geometry()
@@ -196,12 +222,110 @@ class MainGui:
         button.pack(side=LEFT, anchor=N)
 
 
-class CpuStress:
+class DisplayTest:
     def __init__(self, master):
+        self.master = master
+        self.color_fm = None
+        self.num = 0
+        self.show_describe()
+        master.bind("<Escape>", self.gui_exit)
+        master.bind("<Button-1>", self.num_change)
+        master.bind("<Button-3>", self.num_change)
+        self.master.attributes("-fullscreen", True)
+
+    def generation_color(self, color):
+        if self.color_fm is not None:
+            self.color_fm.destroy()
+        x = self.master.winfo_screenwidth()
+        y = self.master.winfo_screenheight()
+        self.color_fm = Canvas(self.master, background=color, height=y, width=x)
+        self.color_fm.pack(expand=1)
+
+    def generation_change_color(self, lst_color):
+        if self.color_fm is not None:
+            self.color_fm.destroy()
+        self.color_fm = Frame(self.master)
+        self.color_fm.pack(expand=1)
+        x = self.master.winfo_screenwidth()
+        y = self.master.winfo_screenheight()
+        dis_x = int(x / 10)
+        dis_y = int(y / 4)
+        index = 0
+        for i in range(4):
+            fm = Frame(self.color_fm)
+            fm.pack(anchor=W)
+            for j in range(10):
+                ca = Canvas(fm, background=lst_color[index], height=dis_y, width=dis_x)
+                ca.pack(side=LEFT, anchor=W)
+                index += 1
+
+    def show_red(self):
+        self.generation_color('red')
+
+    def show_green(self):
+        self.generation_color('green')
+
+    def show_white(self):
+        self.generation_color('white')
+
+    def show_black(self):
+        self.generation_color('black')
+
+    def show_yellow(self):
+        self.generation_color('yellow')
+
+    def show_blue(self):
+        self.generation_color('blue')
+
+    def show_light(self):
+        self.generation_change_color(COLOR_LIGHT)
+
+    def show_dark(self):
+        self.generation_change_color(COLOR_DARK)
+
+    def show_describe(self):
+        if self.color_fm is None:
+            self.color_fm = Frame(self.master)
+            self.color_fm.pack(anchor=N)
+
+        text = """显示屏开始测试，会自动调制全屏，请观察屏幕是否有明亮不连贯的地方,
+                按鼠标左键前进，鼠标右键后退，按ｅｓｃ键退出测试"""
+        label = Label(self.color_fm, text=text)
+        label.pack(side=LEFT, anchor=N)
+
+    def show_exit(self):
+        self.gui_exit(0)
+
+    def num_change(self, event):
+        total_num = len(self.get_dct_color()) - 1
+        if event.num == 1:
+            self.num = min(self.num + 1, total_num)
+        elif event.num == 3:
+            self.num = max(self.num - 1, 0)
+        self._listen_change()
+
+    def get_dct_color(self):
+        word = {0: 'describe', 1: "white", 2: 'black', 3: 'red', 4: 'green', 5: 'yellow', 6:'blue',
+                7: 'light', 8: 'dark', 9: 'exit'
+
+        }
+        return word
+
+    def _listen_change(self):
+        method_name = 'show_'+self.get_dct_color()[self.num]
+        method = getattr(self, method_name)
+        method()
+
+    def gui_exit(self, event):
+        self.master.destroy()
+
+
+class CpuStress:
+    def __init__(self, master, dev_info):
         self.time = 0
         self.master = master
+        self.dev_info = dev_info
         num = 300
-        # self.flag = True
         self.show_time(num)
         self.show_tem()
         self.cpu_stress()
@@ -211,7 +335,7 @@ class CpuStress:
         time_fm = Frame(self.master)
         var_start = StringVar()
         var_start.set('计时器：'+str(num))
-        label = Label(time_fm, textvariable=var_start, font=50)
+        label = Label(time_fm, textvariable=var_start, anchor=W)
         label.pack(side=LEFT, anchor=N)
         time_fm.pack(anchor=W)
         i = 0
@@ -219,23 +343,22 @@ class CpuStress:
             var_start.set('计时器：'+str(num - i))
             time.sleep(1)
             i += 1
+            if i == num:
+                var_start.set('计时器：'+str(num - i) + '压力测试结束')
+                self.stop_stress()
 
     def _show_tem(self):
+        time.sleep(0.1)
         fm = Frame(self.master)
         var_start = StringVar()
         var_start.set(0)
-        label = Label(fm, textvariable=var_start, font=50)
+        label = Label(fm, textvariable=var_start, anchor=W)
         label.pack(side=LEFT, anchor=N)
         fm.pack(anchor=W)
         while True:
-            tmp = self.get_tem()
+            tmp = self.dev_info.get_temp()
             var_start.set('温度：'+tmp)
             time.sleep(1)
-
-    def get_tem(self):
-        cmd = 'sensors'
-        key_word = 'temp1:'
-        return check_dev(cmd, key_word)
 
     def show_tem(self):
         handle = threading.Thread(target=self._show_tem,)
@@ -252,9 +375,13 @@ class CpuStress:
         handle.daemon = True
         handle.start()
 
-    def gui_exit(self):
+    @staticmethod
+    def stop_stress():
         cmd = 'pkill gzip'
         os.popen(cmd)
+
+    def gui_exit(self):
+        self.stop_stress()
         self.master.destroy()
 
 
@@ -264,4 +391,3 @@ if __name__ == '__main__':
     win.title("Computer Devices")
     display = MainGui(win)
     win.mainloop()
-    # print(r.dct_dev)
